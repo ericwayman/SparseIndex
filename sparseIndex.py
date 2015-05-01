@@ -4,6 +4,7 @@ import pandas as pd
 import datetime
 from sklearn.cluster import KMeans
 from matplotlib import finance
+from math import sqrt
 
 # a better idea might be to inherit from the cvxpy.Problem class
 class SparseIndexProblem(object):
@@ -24,6 +25,8 @@ class SparseIndexProblem(object):
         #self.Optimalweights = np.array([])
         #self.t = np.float('nan')
     
+
+
     def SolveProblem(self):
         x = cvx.Variable(self.numAssets)
         t = cvx.Variable()
@@ -88,6 +91,7 @@ class SparseIndexProblem(object):
                 optimalVal = prob.value
                 optimalSol = x.value
                 optimalT = t.value
+                
             if prob.value < optimalVal:
                 #optimalIndex = i
                 optimalVal = prob.value
@@ -102,7 +106,7 @@ class SparseIndexProblem(object):
     def PrintSummary(self):
         print "with regularizer %f: " % self.regularizer
         print "The optimal weights are given by: \n %s" % str(self.OptimalWeights)
-        print "The tracking error squared is given by %s" % str(self.TrackingErrorSquared) 
+        print "The tracking error is given by %s" % str(sqrt(self.TrackingErrorSquared)) 
         print "The optimal Solution (lower bound) is given by %s" % str(self.OptimalValue)
         #upperBound = self.TrackingErrorSquared + self.regularizer*np.sum([self.Optimalweights < .00000001])
         #print "The upper bound for optimal solution is given by %s" % str(upperBound)
@@ -132,7 +136,44 @@ def PricesToReturnsForIndex(prices):
     indexPrices = prices.sum(axis=1)
     return (indexPrices[1:]-indexPrices[:-1])/indexPrices[:-1]
 
+
+def solveCardinalityObjective(prices,error):
+    """
+    Solves the problem 
+    for i=1:n
+    max: x[i]
+    subject to: ||Rx - y||_2 <= error, x>=0, sum(x)==1
+
+    which is a lower bound approximation to the problem with objective: 
+    card(x)
+    R is a number of time periods by number of assets matrix of returns
+    for each asset in the index.  
+    y is the time series for the index returns
+    (The index is assumed to be one share of each asset in the index)
+    error is the treshold for the tracking error.
+    """
+    numAssets = prices.shape[1]
+    x = cvx.Variable(numAssets)
+    returns = PricesToReturns(prices)
+    indexReturns = PricesToReturnsForIndex(prices)
+    TrackingErrorSquared = cvx.sum_squares(returns*x -indexReturns)
+    obj = cvx.Maximize(x[0])
+    constraints = [x>=0,sum(x)==1,TrackingErrorSquared <=error**2]
+    prob = cvx.Problem(obj,constraints)
+
+    optimalVal = 0
+    optimalSol = np.array([])
+    for i in range(numAssets):
+        prob.obj = cvx.Maximize(x[i])
+        prob.solve(warm_start= True)
+        value = prob.value
+        if value > optimalVal:
+            optimalVal = value
+            optimalSol = x.value
+    return optimalVal, np.array(optimalSol).reshape(-1,)
+
 if __name__ == "__main__":
+    #symbols = ['AAPL','SNY']
     symbols = ['COP', 'AXP', 'RTN', 'BA', 'AAPL', 'PEP', 'NAV', 'GSK', 'MSFT',
        'KMB', 'R', 'SAP', 'GS', 'CL', 'WMT', 'GE', 'SNE', 'PFE', 'AMZN',
        'MAR', 'NVS', 'KO', 'MMM', 'CMCSA', 'SNY', 'IBM', 'CVX', 'WFC',
@@ -149,7 +190,11 @@ if __name__ == "__main__":
     returns = PricesToReturns(prices)
     indexReturns = PricesToReturnsForIndex(prices)
     problem = SparseIndexProblem(returns,indexReturns,.005)
-    #problem.SolveProblem()
-    n_clusters = 4
-    problem.solveProblemWithClustering(n_clusters)
+    problem.SolveProblem()
+    #n_clusters = 4
+    #problem.solveProblemWithClustering(n_clusters)
     problem.PrintSummary()
+    cardSol = solveCardinalityObjective(prices,sqrt(problem.TrackingErrorSquared))
+    print "For the cardinality objective function:"
+    print("The optimal value is given by %s:" % str(cardSol[0]))
+    print("The optimal solution is given by %s: " % str(cardSol[1]))
