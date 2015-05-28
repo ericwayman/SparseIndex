@@ -1,12 +1,14 @@
 import numpy as np
 import cvxpy as cvx
 import pandas as pd
+import multiprocessing as mp
 import datetime
 from sklearn.cluster import KMeans
 from matplotlib import finance
 from math import sqrt
 
 # a better idea might be to inherit from the cvxpy.Problem class
+#classes upper case methods lower case
 class SparseIndexProblem(object):
 
     
@@ -14,20 +16,16 @@ class SparseIndexProblem(object):
         self.returns = returns
         self.indexReturns = indexReturns
         self.numAssets = returns.shape[1]
+        #any asset in a quantity below the threshold we consider 0
+        self.threshold = 1/(float(self.numAssets*10000))
         self.regularizer = regularizer
-        #use none instead for these uninitialized values?
         self.OptimalValue = None
         self.TrackingErrorSquared = None
         self.Optimalweights = None
         self.t = None
-        #self.OptimalValue = np.float('nan')
-        #self.TrackingErrorSquared = np.float('nan')
-        #self.Optimalweights = np.array([])
-        #self.t = np.float('nan')
-    
+        self.UpperBound = np.float('inf')
 
-
-    def SolveProblem(self):
+    def solveProblem(self):
         x = cvx.Variable(self.numAssets)
         t = cvx.Variable()
         
@@ -36,6 +34,9 @@ class SparseIndexProblem(object):
         optimalT = np.float('inf')
         optimalSol = np.array([])
         
+       
+
+
         TrackingErrorSquared = cvx.sum_squares(self.returns*x -self.indexReturns )
         obj = cvx.Minimize( TrackingErrorSquared+t)
         baseConstraints = [x>=0,t>=0,sum(x)==1]
@@ -45,8 +46,17 @@ class SparseIndexProblem(object):
             prob = cvx.Problem(obj,constraints)
             prob.solve()
             print("solved Problem %i.  Optimal value: %s" % (i,prob.value))
+            card = np.sum([np.array(x.value).reshape(-1,) > self.threshold])
+            print("the cardinality of the solution is %s" % str(card))
+            upperBound = prob.value - t.value + self.regularizer*card
+            print("the upper bound of the solution is %s" % str(upperBound))
+
+            #update the upper bound
+            if upperBound < self.UpperBound:
+                self.UpperBound = upperBound
+
+            #update the lower bound
             if prob.value < optimalVal:
-                #optimalIndex = i
                 optimalVal = prob.value
                 optimalSol = x.value
                 optimalT = t.value
@@ -91,7 +101,7 @@ class SparseIndexProblem(object):
                 optimalVal = prob.value
                 optimalSol = x.value
                 optimalT = t.value
-                
+
             if prob.value < optimalVal:
                 #optimalIndex = i
                 optimalVal = prob.value
@@ -102,18 +112,20 @@ class SparseIndexProblem(object):
         self.t = optimalT
         self.TrackingErrorSquared = self.OptimalValue - optimalT
 
+    #def solveWithMultiprocessing(self,numProcesses):
+   #     pool = mp.Pool(processes = numProcesses)
+   #     return
 
-    def PrintSummary(self):
+    def printSummary(self):
         print "with regularizer %f: " % self.regularizer
         print "The optimal weights are given by: \n %s" % str(self.OptimalWeights)
         print "The tracking error is given by %s" % str(sqrt(self.TrackingErrorSquared)) 
         print "The optimal Solution (lower bound) is given by %s" % str(self.OptimalValue)
-        #upperBound = self.TrackingErrorSquared + self.regularizer*np.sum([self.Optimalweights < .00000001])
-        #print "The upper bound for optimal solution is given by %s" % str(upperBound)
+        print "The upper bound for the solution is given by:"
+        print str(self.UpperBound)
 
 #helper functions
-
-def SymbolsToPrices(symbols,startDate,endDate):
+def symbolsToPrices(symbols,startDate,endDate):
     """
     From a list of stock symbols and a range of dates, returns a prices by symbols numpy array
     listing the opening prices for the stocks in the given date range.
@@ -122,18 +134,21 @@ def SymbolsToPrices(symbols,startDate,endDate):
     quotes = [finance.quotes_historical_yahoo_ochl(symbol, startDate, endDate,asobject = True).open for symbol in symbols]
     return np.array(quotes).T
 
-def PricesToReturns(prices):
+def pricesToReturns(prices):
     """Takes a numpy array of prices by assets and returns a numpy array of 
     percent returns for each period 
     """
+    #convert array to array of floats to avoid rounding errors if int
+    prices = prices.astype(float)
     return (prices[1:,:] - prices[:-1,:])/prices[:-1,:]
 
-def PricesToReturnsForIndex(prices):
+def pricesToReturnsForIndex(prices):
     """Takes a nxm numpy array (n time periods by m assets) of prices
     and returns a numpy array of returns for the index containing equal shares
     (not dollar value) of each asset
     """
     indexPrices = prices.sum(axis=1)
+    indexPrices = indexPrices.astype(float)
     return (indexPrices[1:]-indexPrices[:-1])/indexPrices[:-1]
 
 
@@ -154,8 +169,8 @@ def solveCardinalityObjective(prices,error):
     """
     numAssets = prices.shape[1]
     x = cvx.Variable(numAssets)
-    returns = PricesToReturns(prices)
-    indexReturns = PricesToReturnsForIndex(prices)
+    returns = pricesToReturns(prices)
+    indexReturns = pricesToReturnsForIndex(prices)
     TrackingErrorSquared = cvx.sum_squares(returns*x -indexReturns)
     obj = cvx.Maximize(x[0])
     constraints = [x>=0,sum(x)==1,TrackingErrorSquared <=error**2]
@@ -185,16 +200,18 @@ if __name__ == "__main__":
     endDate = datetime.datetime(2013, 1, 1)
     #df =pd.read_csv('a1.csv')
     #prices = df.as_matrix()
-    prices = SymbolsToPrices(symbols,startDate,endDate)
+    prices = symbolsToPrices(symbols,startDate,endDate)
     print("data loaded")
-    returns = PricesToReturns(prices)
-    indexReturns = PricesToReturnsForIndex(prices)
-    problem = SparseIndexProblem(returns,indexReturns,.005)
-    problem.SolveProblem()
+    returns = pricesToReturns(prices)
+    indexReturns = pricesToReturnsForIndex(prices)
+    problem = SparseIndexProblem(returns,indexReturns,.02)
+    problem.solveProblem()
     #n_clusters = 4
     #problem.solveProblemWithClustering(n_clusters)
-    problem.PrintSummary()
+    problem.printSummary()
+    print np.array(symbols)[problem.OptimalWeights > problem.threshold]
     cardSol = solveCardinalityObjective(prices,sqrt(problem.TrackingErrorSquared))
     print "For the cardinality objective function:"
     print("The optimal value is given by %s:" % str(cardSol[0]))
-    print("The optimal solution is given by %s: " % str(cardSol[1]))
+    print("The optimal solution is given by: ")
+    print  str(cardSol[1])
