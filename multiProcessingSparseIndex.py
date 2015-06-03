@@ -4,8 +4,11 @@ import cvxpy as cvx
 import pandas as pd
 import datetime
 from matplotlib import finance
+from math import sqrt
 import sparseIndex as si
 import pdb
+#local imports
+
 
 class Consumer(multiprocessing.Process):
     #each Consumer represents a process associated with task_queues and result_queues
@@ -32,13 +35,13 @@ class Consumer(multiprocessing.Process):
             answer = next_task()
             #print answer
             self.task_queue.task_done()
+            #print answer
             self.result_queue.put(answer)
         return
 
 
 class Task(cvx.Problem):
-    #can task inherit from cvx.Problem?
-    #later is it possible to make each task a copy of a solved problem to make use of warm starts
+    #is it possible to make each task a copy of a solved problem to make use of warm starts
     """
     A task object represents a problem of the form:
     min ||Rx -y||_2^2 + t
@@ -52,22 +55,24 @@ class Task(cvx.Problem):
 
     def __init__(self, returns, indexReturns,regularizer,i):
     #initiate a problem with data
-    #should we add attributes for the index and variables?
         numAssets = returns.shape[1]   
         self.x = cvx.Variable(numAssets)
-        t=cvx.Variable()
-        baseConstraints = [self.x>=0,t>=0,sum(self.x)==1]
+        self.index = i
+        self.t=cvx.Variable()
+        baseConstraints = [self.x>=0,self.t>=0,sum(self.x)==1]
         #should have a check to see if i is in the range of num of assets
-        constraints = baseConstraints+ [cvx.log(self.x[i])+cvx.log(t)>= cvx.log(regularizer)]
+        constraints = baseConstraints+ [cvx.log(self.x[i])+cvx.log(self.t)>= cvx.log(regularizer)]
         TrackingErrorSquared = cvx.sum_squares(returns*self.x -indexReturns )
-        obj = cvx.Minimize( TrackingErrorSquared+t)
+        obj = cvx.Minimize( TrackingErrorSquared+self.t)
         cvx.Problem.__init__(self,obj,constraints)
 
 
     def __call__(self):
     #call solver on problem   
         self.solve()
-        return self.value
+        #answer = solutionQueue.Solution(self.index,self.x,self.value)
+        #or return (self.value, *solution object associated with self*)
+        return (self.value, self.x.value, self.t.value)
     def __str__(self):
     #call summary giving a string reprsentation of the solution
         return 'Add string summary'
@@ -87,14 +92,17 @@ if __name__ == '__main__':
 
     # Establish communication queues
     tasks = multiprocessing.JoinableQueue()
+    #results = solutionQueue.SolutionQueue()
     results = multiprocessing.Queue()
-    
+
     prices = si.symbolsToPrices(symbols,startDate,endDate)
     returns = si.pricesToReturns(prices)
     indexReturns = si.pricesToReturnsForIndex(prices)
     numAssets = returns.shape[1]
-
-    
+    #threshold to determine of weights are nonzero
+    #threshold = 1.0/(100.0*float(numAssets))
+    threshold = .02
+    print "threshold: %f" % threshold
     # Start consumers
     numConsumers = multiprocessing.cpu_count() * 2
     print 'Creating %d consumers' % numConsumers
@@ -107,7 +115,7 @@ if __name__ == '__main__':
     numJobs = numAssets
     #number of jobs = number of assets
 
-    regularizer = 1
+    regularizer = .005
     for i in range(numJobs):
         #add Tasks to task queue 
         #each 'task is a cvx.Minimize object'
@@ -118,17 +126,39 @@ if __name__ == '__main__':
     # Add a poison pill for each consumer
     for i in range(numConsumers):
         tasks.put(None)
-    #pdb.set_trace()
-    # Wait for all of the tasks to finish
-        #start each process
+    
+    
+     #start each process
     for w in consumers:
         w.start()
 
+    # Wait for all of the tasks to finish
     tasks.join()
     
-
+    print "start printing results"
     # Start printing results
+    currentMin = np.float('inf')
+    solution = None
+    currentUpperBound = np.float('inf')
     while numJobs:
         result = results.get()
-        print result
+        if result[0] < currentMin:
+            currentMin = result[0]
+            solution = result
+        errorSquared = result[0]-result[2]
+        uB= errorSquared + regularizer*si.findSolutionCardinality(result[1],threshold)
+        if uB < currentUpperBound:
+            currentUpperBound = uB
+        print result[0]
         numJobs -= 1
+
+    print "the optimal value: %f" %currentMin
+    print "the upper bound: %f" %currentUpperBound
+    print "the cardinatliy of the solution: %f" %si.findSolutionCardinality(solution[1],threshold)
+    print "tracking error: %f" %sqrt(solution[0] - solution[2])
+    optimalWeights = np.array(solution[1]).reshape(-1,)
+    nonzeroWeights = optimalWeights[optimalWeights>threshold]
+    print "The (nonzero) optimal weights: \n %s" %nonzeroWeights
+    #pdb.set_trace()
+    print "The corresponding symbols \n: %s" %np.array(symbols)[optimalWeights>threshold]
+

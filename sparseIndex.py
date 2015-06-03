@@ -112,9 +112,6 @@ class SparseIndexProblem(object):
         self.t = optimalT
         self.TrackingErrorSquared = self.OptimalValue - optimalT
 
-    #def solveWithMultiprocessing(self,numProcesses):
-   #     pool = mp.Pool(processes = numProcesses)
-   #     return
 
     def printSummary(self):
         print "with regularizer %f: " % self.regularizer
@@ -152,6 +149,20 @@ def pricesToReturnsForIndex(prices):
     return (indexPrices[1:]-indexPrices[:-1])/indexPrices[:-1]
 
 
+def findSolutionCardinality(w,threshold):
+    '''
+    counts the number of entries in w larger than the threshold
+    '''
+    return np.array([np.array(w)> threshold]).astype(int).sum()
+
+#test this
+# def errorSquared(R,x,y):
+#     '''
+#     Given a nxm matrix R, nx1 vector x and mx1 vector
+#     '''
+#     return np.linalg.norm(np.dot(R,x) - y)**2
+
+
 def solveCardinalityObjective(prices,error):
     """
     Solves the problem 
@@ -182,6 +193,7 @@ def solveCardinalityObjective(prices,error):
         prob.obj = cvx.Maximize(x[i])
         prob.solve(warm_start= True)
         value = prob.value
+        #should this be value < optimalVal
         if value > optimalVal:
             optimalVal = value
             optimalSol = x.value
@@ -198,7 +210,7 @@ if __name__ == "__main__":
        'NOC', 'MDLZ', 'UN']
     startDate = datetime.datetime(2012, 1, 1)
     endDate = datetime.datetime(2013, 1, 1)
-    #df =pd.read_csv('a1.csv')
+    #df =pd.read_csv('a1.csv')=
     #prices = df.as_matrix()
     prices = symbolsToPrices(symbols,startDate,endDate)
     print("data loaded")

@@ -34,3 +34,21 @@ def test_pricesToReturnsForIndex_values():
     returns = pricesToReturnsForIndex(prices)
     assert np.array_equal(returns, np.array([0.10,0.10]).T)
 
+
+#test findSolutionCardinality()
+def test_findSolutionCardinality_1():
+    w = [1,2,3,4]
+    threshold = 2.5
+    assert_equals(findSolutionCardinality(w,threshold),2)
+
+
+def test_findSolutionCardinality_2():
+    w = [1,1,1,1,1,1]
+    threshold = 0.5
+    assert_equals(findSolutionCardinality(w,threshold),6)
+
+def test_findSolutionCardinality_3():
+    w = np.array([0,0,0,0])
+    threshold = 0.5
+    assert_equals(findSolutionCardinality(w,threshold),0)
+
