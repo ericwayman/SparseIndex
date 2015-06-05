@@ -65,20 +65,25 @@ regularizer = 0.02
 for line in sys.stdin:
     #Haven't decided how to split the data yet, so I'll just copy this part over from sparseIndex
     #One idea is to assign an index to each symbol and have the input data be a list of indices.
-    
+    line = line.strip()
+    try:
+        i = symbols.index(line)
+    except:
+        continue
     #Solve problem
     x = cvx.Variable(numAssets)
     t = cvx.Variable()
     TrackingErrorSquared = cvx.sum_squares(returns*x - indexReturns)
     obj = cvx.Minimize( TrackingErrorSquared+t)
     baseConstraints = [x>=0,t>=0,sum(x)==1]
-    for i in range(numAssets):
-        constraints = baseConstraints+ [cvx.log(x[i])+cvx.log(t)>= cvx.log(regularizer)]
-        prob = cvx.Problem(obj,constraints)
-        prob.solve()
-        card = np.sum([np.array(x.value).reshape(-1,) > threshold])
-        upperBound = prob.value - t.value + regularizer*card
-        optimalWeights = str(np.array(x.value).reshape(-1,))
-        optimalWeights = re.sub('\n','',optimalWeights)
-        #optimalVal,optimalT,card,upperBound,optimalWeights
-        print "{0},{1},{2},{3},{4}".format(prob.value,t.value,card,upperBound,optimalWeights)
+    constraints = baseConstraints+ [cvx.log(x[i])+cvx.log(t)>= cvx.log(regularizer)]
+    prob = cvx.Problem(obj,constraints)
+    prob.solve()
+    card = np.sum([np.array(x.value).reshape(-1,) > threshold])
+    upperBound = prob.value - t.value + regularizer*card
+    optimalWeights = str(np.array(x.value).reshape(-1,))
+    optimalWeights = re.sub('\n','',optimalWeights)
+    #optimalVal,optimalT,card,upperBound,optimalWeights
+    optimalWeights = re.sub('\[ {1,}','[',optimalWeights)
+    optimalWeights = re.sub('\s+',',',optimalWeights)
+    print "{0}\t{1}\t{2}\t{3}\t{4}".format(prob.value,t.value,card,upperBound,optimalWeights)

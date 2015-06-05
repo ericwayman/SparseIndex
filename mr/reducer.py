@@ -32,11 +32,11 @@ optimalWeights = ""
 for line in sys.stdin:
     line = line.strip()
     #optimalVal,optimalT,card,upperBound
-    parts = line.split(',')
+    parts = line.split('\t')
     [val,t,card,bound] = [float(x) for x in parts[:-1]]
     weights = parts[-1]
-    weights = re.sub('\[ {1,}','[',weights)
-    weights = re.sub('\s+',',',weights)
+#    weights = re.sub('\[ {1,}','[',weights)
+#    weights = re.sub('\s+',',',weights)
     weights = ast.literal_eval(weights)
     weights = np.array(weights)
     if val < optimalVal:
