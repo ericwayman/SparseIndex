@@ -16,8 +16,8 @@ WMT
 GE
 SNE
 PFE
-AMZN,
-           MAR
+AMZN
+MAR
 NVS
 KO
 MMM
@@ -25,8 +25,8 @@ CMCSA
 SNY
 IBM
 CVX
-WFC,
-           DD
+WFC
+DD
 CVS
 TOT
 CAT
@@ -35,8 +35,8 @@ BAC
 WBA
 AIG
 TWX
-HD,
-           TXN
+HD
+TXN
 VLO
 F
 CVC
@@ -45,8 +45,8 @@ PG
 LMT
 K
 HMC
-GD,
-           HPQ
+GD
+HPQ
 MTU
 XRX
 YHOO
