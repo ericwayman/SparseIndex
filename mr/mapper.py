@@ -86,4 +86,5 @@ for line in sys.stdin:
     #optimalVal,optimalT,card,upperBound,optimalWeights
     optimalWeights = re.sub('\[ {1,}','[',optimalWeights)
     optimalWeights = re.sub('\s+',',',optimalWeights)
-    print "{0}\t{1}\t{2}\t{3}\t{4}".format(prob.value,t.value,card,upperBound,optimalWeights)
+    #Need dummy val to ensure that the correct reducer gets the values.
+    print "1\t{0}\t{1}\t{2}\t{3}\t{4}".format(prob.value,t.value,card,upperBound,optimalWeights)

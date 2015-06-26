@@ -33,7 +33,7 @@ for line in sys.stdin:
     line = line.strip()
     #optimalVal,optimalT,card,upperBound
     parts = line.split('\t')
-    [val,t,card,bound] = [float(x) for x in parts[:-1]]
+    [dummy,val,t,card,bound] = [float(x) for x in parts[:-1]]
     weights = parts[-1]
 #    weights = re.sub('\[ {1,}','[',weights)
 #    weights = re.sub('\s+',',',weights)
