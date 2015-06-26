@@ -129,6 +129,8 @@ def symbolsToPrices(symbols,startDate,endDate):
     """
     #add check to account for missing values in data
     quotes = [finance.quotes_historical_yahoo_ochl(symbol, startDate, endDate,asobject = True).open for symbol in symbols]
+    print "prices shape:"
+    print np.array(quotes).T.shape
     return np.array(quotes).T
 
 def pricesToReturns(prices):
@@ -210,13 +212,12 @@ if __name__ == "__main__":
        'NOC', 'MDLZ', 'UN']
     startDate = datetime.datetime(2012, 1, 1)
     endDate = datetime.datetime(2013, 1, 1)
-    #df =pd.read_csv('a1.csv')=
-    #prices = df.as_matrix()
     prices = symbolsToPrices(symbols,startDate,endDate)
     print("data loaded")
     returns = pricesToReturns(prices)
     indexReturns = pricesToReturnsForIndex(prices)
-    problem = SparseIndexProblem(returns,indexReturns,.02)
+    regularizer = .02
+    problem = SparseIndexProblem(returns,indexReturns,regularizer)
     problem.solveProblem()
     #n_clusters = 4
     #problem.solveProblemWithClustering(n_clusters)

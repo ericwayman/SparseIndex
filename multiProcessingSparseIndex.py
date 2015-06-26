@@ -115,7 +115,7 @@ if __name__ == '__main__':
     numJobs = numAssets
     #number of jobs = number of assets
 
-    regularizer = .005
+    regularizer = .0025
     for i in range(numJobs):
         #add Tasks to task queue 
         #each 'task is a cvx.Minimize object'
@@ -161,4 +161,4 @@ if __name__ == '__main__':
     print "The (nonzero) optimal weights: \n %s" %nonzeroWeights
     #pdb.set_trace()
     print "The corresponding symbols \n: %s" %np.array(symbols)[optimalWeights>threshold]
-
+    print "total weight: %f" % sum(nonzeroWeights)
